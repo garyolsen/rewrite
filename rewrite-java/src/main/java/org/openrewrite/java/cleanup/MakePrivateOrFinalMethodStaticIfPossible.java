@@ -67,8 +67,7 @@ public class MakePrivateOrFinalMethodStaticIfPossible extends Recipe {
                         )
                 );
 
-                // TODO limit the scope of the reformatting here
-                return autoFormat(m.withModifiers(newModifiers), executionContext);
+                return autoFormat(m.withModifiers(newModifiers), m.getName(), executionContext, getCursor().getParent());
             }
         };
     }
