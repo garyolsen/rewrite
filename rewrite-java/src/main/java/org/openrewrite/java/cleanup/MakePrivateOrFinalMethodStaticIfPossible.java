@@ -1,6 +1,7 @@
 package org.openrewrite.java.cleanup;
 
 import org.openrewrite.*;
+import org.openrewrite.internal.ListUtils;
 import org.openrewrite.internal.lang.Nullable;
 import org.openrewrite.java.JavaIsoVisitor;
 import org.openrewrite.java.tree.*;
@@ -24,8 +25,7 @@ public class MakePrivateOrFinalMethodStaticIfPossible extends Recipe {
     }
 
     @Override
-    protected TreeVisitor<?, ExecutionContext> getVisitor() {
-        // TODO: Is it better practice to explicitly declare a named visitor class?
+    public TreeVisitor<?, ExecutionContext> getVisitor() {
         return new JavaIsoVisitor<ExecutionContext>() {
             @Override
             public J.MethodDeclaration visitMethodDeclaration(J.MethodDeclaration method, ExecutionContext executionContext) {
@@ -58,16 +58,16 @@ public class MakePrivateOrFinalMethodStaticIfPossible extends Recipe {
                 );
 
                 List<J.Modifier> newModifiers = ModifierOrder.sortModifiers(
-                        // The modifier list will *always* ultimately be modified, so it's okay to just use streams.
-                        Stream.concat(
+                        ListUtils.concat(
                                 // Need to remove `final` modifier because it is redundant on a static method.
-                                m.getModifiers().stream().filter(p -> p.getType() != J.Modifier.Type.Final),
+                                m.getModifiers()
+                                        .stream().filter(p -> p.getType() != J.Modifier.Type.Final).collect(Collectors.toList()),
                                 // Add `static`
-                                Stream.of(staticModifier)
-                        ).collect(Collectors.toList())
+                                staticModifier
+                        )
                 );
 
-                // TODO: Is it better practice to limit the autoFormat to only the modifier list?
+                // TODO limit the scope of the reformatting here
                 return autoFormat(m.withModifiers(newModifiers), executionContext);
             }
         };
@@ -156,7 +156,7 @@ public class MakePrivateOrFinalMethodStaticIfPossible extends Recipe {
     }
 
     private static boolean isImplicitThisMethodInvocation(J.Identifier identifier, Cursor cursor) {
-        Object parent = cursor.dropParentWhile(p -> p instanceof JRightPadded).getValue();
+        Object parent = cursor.getParentTreeCursor().getValue();
 
         // not part of a method invocation
         if (!(parent instanceof J.MethodInvocation)) {
@@ -206,10 +206,10 @@ public class MakePrivateOrFinalMethodStaticIfPossible extends Recipe {
 
         // check if the ident is the Name of a FieldAccess, i.e. `<target>.<name>`
         // if so, it can't also have an implicit `this` qualification (because the target is explicit)
-        Object parent = cursor.dropParentWhile(p -> p instanceof JLeftPadded).getValue();
+        Object parent = cursor.getParentTreeCursor().getValue();
         if (parent instanceof J.FieldAccess) {
             J.Identifier nameIdentifier = ((J.FieldAccess) parent).getName();
-            if (nameIdentifier.getId().equals(identifier.getId())) {
+            if (nameIdentifier == identifier) {
                 return false;
             }
         }
